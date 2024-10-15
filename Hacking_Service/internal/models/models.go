@@ -2,12 +2,12 @@ package models
 
 import "time"
 
-type JsonResponse struct {
-	Error   bool   `json:"error"`
-	Status  int    `json:"status"`
-	Message string `json:"message"`
-	Data    any    `json:"data,omitempty"`
-}
+const (
+	MatrixWidth  = 5
+	MatrixHeight = 5
+
+	KeySequenceLength = 7
+)
 
 type StatusResponse struct {
 	Status string `json:"status"`
@@ -19,7 +19,7 @@ type MatrixData struct {
 }
 
 type Matrix struct {
-	Data [5][5]int `json:"matrix"`
+	Data [MatrixHeight][MatrixWidth]int `json:"matrix"`
 }
 
 type KeySequence struct {

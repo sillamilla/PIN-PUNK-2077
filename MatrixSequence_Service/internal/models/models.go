@@ -1,15 +1,11 @@
 package models
 
-type JsonResponse struct {
-	Error   bool   `json:"error"`
-	Status  int    `json:"status"`
-	Message string `json:"message"`
-	Data    any    `json:"data,omitempty"`
-}
+const (
+	MatrixWidth  = 5
+	MatrixHeight = 5
 
-type StatusResponse struct {
-	Status string `json:"status"`
-}
+	KeySequenceLength = 7
+)
 
 type MatrixData struct {
 	Matrix
@@ -17,7 +13,7 @@ type MatrixData struct {
 }
 
 type Matrix struct {
-	Data [5][5]int `json:"matrix"`
+	Data [MatrixHeight][MatrixWidth]int `json:"matrix"` //todo check
 }
 
 type KeySequence struct {

@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-func TestCountMatches(t *testing.T) {
-	service := NewService(nil)
+func TestHack(t *testing.T) {
+	srv := service{}
 
 	tests := []struct {
 		name          string
@@ -109,10 +109,10 @@ func TestCountMatches(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			keys, count := service.CountMatches(tt.matrix, tt.keySequence)
+			keys, count := srv.hack(tt.matrix, tt.keySequence)
 
-			if keys != tt.expectedKeys {
-				t.Errorf("expected keys %s, got %s", tt.expectedKeys, keys)
+			if sliceToString(keys) != tt.expectedKeys {
+				t.Errorf("expected keys %s, got %s", tt.expectedKeys, sliceToString(keys))
 			}
 			if count != tt.expectedCount {
 				t.Errorf("expected count %d, got %d", tt.expectedCount, count)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"MiniGame-PinUp/Hacking_Service/app/config"
 	"MiniGame-PinUp/Hacking_Service/internal/handler"
 	"MiniGame-PinUp/Hacking_Service/internal/models"
 	"MiniGame-PinUp/Hacking_Service/internal/repository"
@@ -13,12 +14,12 @@ import (
 )
 
 func main() {
-
+	cfg := config.GetConfig()
 	db := pg.Connect(&pg.Options{
-		Addr:     "localhost:5432",
-		User:     "postgres",
-		Password: "postgres",
-		Database: "postgres",
+		Addr:     cfg.Postgres.Addr,
+		User:     cfg.Postgres.User,
+		Password: cfg.Postgres.Password,
+		Database: cfg.Postgres.DBName,
 	})
 	defer db.Close()
 
@@ -34,13 +35,10 @@ func main() {
 	hnd := handler.New(srv)
 
 	router := chi.NewRouter()
+	router.Post("/hack", hnd.Hack)
+	router.Get("/getall", hnd.GetAll)
 
-	router.Route("/", func(r chi.Router) {
-		r.Post("/hack", hnd.Hack)
-		r.Get("/getall", hnd.GetAll)
-	})
-
-	if err = http.ListenAndServe(":8081", router); err != nil {
+	if err = http.ListenAndServe(":"+cfg.HTTP.Port, router); err != nil {
 		log.Fatal(err)
 	}
 }

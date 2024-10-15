@@ -1,75 +1,87 @@
 package service
 
 import (
-	"MiniGame-PinUp/Hacking_Service/internal/helper"
 	"MiniGame-PinUp/Hacking_Service/internal/models"
 	"MiniGame-PinUp/Hacking_Service/internal/repository"
+	"context"
+	"strconv"
+	"strings"
 	"time"
 )
 
-type Matrix interface {
-	CountMatches(matrix models.Matrix, keySequence models.KeySequence) (string, int)
-	SaveHackAttempt(keys string, number int) error
+type MatrixService interface {
+	Hack(ctx context.Context, matrix models.Matrix, keySequence models.KeySequence) (string, error)
+	SaveHack(ctx context.Context, key []int, resultOfHack int) error
 
-	GetAll() ([]models.HackData, error)
+	GetAll(ctx context.Context) ([]models.HackData, error)
 }
 
 type service struct {
-	repository repository.Matrix
+	repository repository.MatrixRepository
 }
 
-func NewService(repo repository.Matrix) Matrix {
+func New(repo repository.MatrixRepository) MatrixService {
 	return &service{repository: repo}
 }
 
-func (s *service) CountMatches(matrix models.Matrix, keySequence models.KeySequence) (string, int) {
-	HackedKey = []int{}
+func (s *service) Hack(ctx context.Context, matrix models.Matrix, keySequence models.KeySequence) (string, error) {
+	key, resultOfHack := s.hack(matrix, keySequence)
 
-	horizontal(matrix, keySequence.Keys, 0, 0, false, false)
+	status := "fail"
+	if resultOfHack > 0 {
+		status = "success"
 
-	keys := helper.SliceToString(HackedKey)
-
-	switch {
-	case len(HackedKey) >= 2 && len(HackedKey) <= 3:
-		return keys, 1
-	case len(HackedKey) >= 4 && len(HackedKey) <= 6:
-		return keys, 2
-	case len(HackedKey) == 7:
-		return keys, 3
+		if err := s.SaveHack(ctx, key, resultOfHack); err != nil {
+			return "", err
+		}
 	}
 
-	return keys, 0
+	return status, nil
 }
 
-func (s *service) GetAll() ([]models.HackData, error) {
-	data, err := s.repository.GetAll()
-	if err != nil {
-		return nil, err
-	}
-
-	return data, nil
-}
-
-func (s *service) SaveHackAttempt(keys string, number int) error {
+func (s *service) SaveHack(ctx context.Context, key []int, resultOfHack int) error {
 	hackData := models.HackData{
-		Key: keys,
+		Key: sliceToString(key),
 		Data: models.JSONData{
 			Created:      time.Now(),
-			ResultOfHack: number,
+			ResultOfHack: resultOfHack,
 		},
 	}
 
-	err := s.repository.Save(hackData)
-	if err != nil {
+	if err := s.repository.Save(ctx, hackData); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-var HackedKey []int // Глобальная переменная для хранения найденных ключей
+func (s *service) GetAll(ctx context.Context) ([]models.HackData, error) {
+	if data, err := s.repository.GetAll(ctx); err == nil {
+		return data, nil
+	} else {
+		return nil, err
+	}
+}
 
-func horizontal(matrix models.Matrix, sequence []int, X, Y int, negativeX, negativeY bool) {
+func (s *service) hack(matrix models.Matrix, keySequence models.KeySequence) ([]int, int) {
+	hackedKey := make([]int, 0, models.KeySequenceLength)
+
+	s.horizontal(matrix, keySequence.Keys, 0, 0, false, false, &hackedKey)
+
+	resultOfHack := 0
+	switch len(hackedKey) {
+	case 2, 3:
+		resultOfHack = 1
+	case 4, 5, 6:
+		resultOfHack = 2
+	case 7:
+		resultOfHack = 3
+	}
+
+	return hackedKey, resultOfHack
+}
+
+func (s *service) horizontal(matrix models.Matrix, sequence []int, X, Y int, negativeX, negativeY bool, hackedKey *[]int) {
 	currentX := X
 	currentY := Y
 
@@ -80,12 +92,12 @@ func horizontal(matrix models.Matrix, sequence []int, X, Y int, negativeX, negat
 		}
 
 		for _, key := range sequence {
-			if len(HackedKey) == 7 {
+			if len(*hackedKey) == models.KeySequenceLength {
 				return
 			}
 
 			if key == matrix.Data[currentX][currentY] {
-				HackedKey = append(HackedKey, matrix.Data[currentX][currentY])
+				*hackedKey = append(*hackedKey, matrix.Data[currentX][currentY])
 				matrix.Data[currentX][currentY] = -1
 
 				if currentY == 4 {
@@ -96,10 +108,10 @@ func horizontal(matrix models.Matrix, sequence []int, X, Y int, negativeX, negat
 				}
 
 				if negativeX {
-					verticalReverse(matrix, sequence, currentX-1, currentY, negativeX, negativeY)
+					s.verticalReverse(matrix, sequence, currentX-1, currentY, negativeX, negativeY, hackedKey)
 					return
 				} else {
-					vertical(matrix, sequence, currentX+1, currentY, negativeX, negativeY)
+					s.vertical(matrix, sequence, currentX+1, currentY, negativeX, negativeY, hackedKey)
 					return
 				}
 			}
@@ -108,7 +120,7 @@ func horizontal(matrix models.Matrix, sequence []int, X, Y int, negativeX, negat
 }
 
 // Функция для обратного горизонтального движения
-func horizontalReverse(matrix models.Matrix, sequence []int, X, Y int, negativeX, negativeY bool) {
+func (s *service) horizontalReverse(matrix models.Matrix, sequence []int, X, Y int, negativeX, negativeY bool, hackedKey *[]int) {
 	currentX := X
 	currentY := Y
 
@@ -118,12 +130,12 @@ func horizontalReverse(matrix models.Matrix, sequence []int, X, Y int, negativeX
 		}
 
 		for _, key := range sequence {
-			if len(HackedKey) == 7 {
+			if len(*hackedKey) == models.KeySequenceLength {
 				return
 			}
 
 			if key == matrix.Data[currentX][currentY] {
-				HackedKey = append(HackedKey, matrix.Data[currentX][currentY])
+				*hackedKey = append(*hackedKey, matrix.Data[currentX][currentY])
 				matrix.Data[currentX][currentY] = -1
 
 				if currentY == 4 {
@@ -134,10 +146,10 @@ func horizontalReverse(matrix models.Matrix, sequence []int, X, Y int, negativeX
 				}
 
 				if negativeX {
-					verticalReverse(matrix, sequence, currentX-1, currentY, negativeX, negativeY)
+					s.verticalReverse(matrix, sequence, currentX-1, currentY, negativeX, negativeY, hackedKey)
 					return
 				} else {
-					horizontal(matrix, sequence, currentX+1, currentY, negativeX, negativeY)
+					s.horizontal(matrix, sequence, currentX+1, currentY, negativeX, negativeY, hackedKey)
 					return
 				}
 			}
@@ -145,7 +157,7 @@ func horizontalReverse(matrix models.Matrix, sequence []int, X, Y int, negativeX
 	}
 }
 
-func vertical(matrix models.Matrix, sequence []int, X, Y int, negativeX, negativeY bool) {
+func (s *service) vertical(matrix models.Matrix, sequence []int, X, Y int, negativeX, negativeY bool, hackedKey *[]int) {
 	currentX := X
 	currentY := Y
 
@@ -156,12 +168,12 @@ func vertical(matrix models.Matrix, sequence []int, X, Y int, negativeX, negativ
 		}
 
 		for _, key := range sequence {
-			if len(HackedKey) == 7 {
+			if len(*hackedKey) == models.KeySequenceLength {
 				return
 			}
 
 			if key == matrix.Data[currentX][Y] {
-				HackedKey = append(HackedKey, matrix.Data[currentX][Y])
+				*hackedKey = append(*hackedKey, matrix.Data[currentX][Y])
 				matrix.Data[currentX][currentY] = -1
 
 				if currentX == 4 {
@@ -172,10 +184,10 @@ func vertical(matrix models.Matrix, sequence []int, X, Y int, negativeX, negativ
 				}
 
 				if negativeY {
-					horizontalReverse(matrix, sequence, currentX, currentY-1, negativeX, negativeY)
+					s.horizontalReverse(matrix, sequence, currentX, currentY-1, negativeX, negativeY, hackedKey)
 					return
 				} else {
-					horizontal(matrix, sequence, currentX, currentY+1, negativeX, negativeY)
+					s.horizontal(matrix, sequence, currentX, currentY+1, negativeX, negativeY, hackedKey)
 					return
 				}
 			}
@@ -184,7 +196,7 @@ func vertical(matrix models.Matrix, sequence []int, X, Y int, negativeX, negativ
 }
 
 // Функция для обратного вертикального движения
-func verticalReverse(matrix models.Matrix, sequence []int, X, Y int, negativeX, negativeY bool) {
+func (s *service) verticalReverse(matrix models.Matrix, sequence []int, X, Y int, negativeX, negativeY bool, hackedKey *[]int) {
 	currentX := X
 	currentY := Y
 
@@ -194,12 +206,12 @@ func verticalReverse(matrix models.Matrix, sequence []int, X, Y int, negativeX, 
 		}
 
 		for _, key := range sequence {
-			if len(HackedKey) == 7 {
+			if len(*hackedKey) == models.KeySequenceLength {
 				return
 			}
 
 			if key == matrix.Data[currentX][currentY] {
-				HackedKey = append(HackedKey, matrix.Data[currentX][currentY])
+				*hackedKey = append(*hackedKey, matrix.Data[currentX][currentY])
 				matrix.Data[currentX][currentY] = -1
 
 				if currentX == 0 {
@@ -210,13 +222,21 @@ func verticalReverse(matrix models.Matrix, sequence []int, X, Y int, negativeX, 
 				}
 
 				if negativeY {
-					horizontalReverse(matrix, sequence, currentX, currentY-1, negativeX, negativeY)
+					s.horizontalReverse(matrix, sequence, currentX, currentY-1, negativeX, negativeY, hackedKey)
 					return
 				} else {
-					horizontal(matrix, sequence, currentX, currentY+1, negativeX, negativeY)
+					s.horizontal(matrix, sequence, currentX, currentY+1, negativeX, negativeY, hackedKey)
 					return
 				}
 			}
 		}
 	}
+}
+
+func sliceToString(slice []int) string {
+	var builder strings.Builder
+	for _, num := range slice {
+		builder.WriteString(strconv.Itoa(num))
+	}
+	return builder.String()
 }
